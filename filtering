@@ -1,0 +1,131 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+!pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+!pip install transformers
+!pip install pillow
+
+from transformers import CLIPProcessor, CLIPModel
+import torch
+
+# CLIP 모델 로드
+model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+print("✅ CLIP 모델 로드 완료!")
+
+# 1차 필터링
+
+import os
+
+# 구글 드라이브 내 이미지 폴더 경로
+image_folder = "/content/drive/MyDrive/식재료/대파"
+filtered_folder = "/content/drive/MyDrive/식재료 필터링/f_대파"  # 필터링된 이미지 저장 폴더
+
+# 필터링된 이미지 저장할 폴더 만들기
+os.makedirs(filtered_folder, exist_ok=True)
+
+print(f"이미지 폴더: {image_folder}")
+print(f"필터링된 이미지 저장 폴더: {filtered_folder}")
+
+from PIL import Image
+
+# CLIP 모델이 분류할 텍스트 라벨
+text_inputs = ["This is a vegetable from the kitchen", "This is a cooked dish", "This is an unrelated image"]
+
+# 이미지 폴더에서 하나씩 분석하여 필터링
+for image_name in os.listdir(image_folder):
+    image_path = os.path.join(image_folder, image_name)
+
+    try:
+        image = Image.open(image_path)  # 이미지 불러오기
+
+        # CLIP 모델 입력 준비
+        inputs = processor(text=text_inputs, images=image, return_tensors="pt", padding=True)
+        outputs = model(**inputs)
+
+        # 예측 확률 계산
+        probs = torch.softmax(outputs.logits_per_image, dim=1).tolist()[0]
+
+        # "Raw ingredient(상품)"일 확률이 가장 높다면 저장
+        if probs[0] > max(probs[1], probs[2]):
+            image.save(os.path.join(filtered_folder, image_name))
+            print(f"✅ 상품 이미지로 분류됨: {image_name}")
+        else:
+            os.remove(image_path)
+            print(f"❌ 제거됨: {image_name} (조리된 음식 또는 무관한 이미지)")
+
+    except Exception as e:
+        os.remove(image_path)
+        print(f"⚠️ 오류 발생: {image_name} - {str(e)}")
+
+print("🎯 필터링 완료: 상품 이미지만 남겼습니다!")
+
+
+# 2차 필터링
+
+import os
+
+# 📂 폴더별 text_inputs 설정 (집에서 찍은 식재료와 유사하도록 수정)
+folder_text_inputs = {
+    "f_onion": ["This is a fresh vegetable from the kitchen", "This is a cooked vegetable dish", "This is an unrelated image"],
+    "f_carrot": ["This is a fresh vegetable from the kitchen", "This is a cooked vegetable dish", "This is an unrelated image"],
+    "f_콩나물": ["This is a fresh vegetable from the kitchen", "This is a cooked vegetable dish", "This is an unrelated image"],
+    "f_양배추": ["This is a fresh vegetable from the kitchen", "This is a cooked vegetable dish", "This is an unrelated image"],
+    "f_대파": ["This is a fresh vegetable in the refrigerator of my house", "This is a cooked vegetable dish", "This is an unrelated image"],
+    "f_버섯": ["This is a fresh vegetable, a cooking ingredient used in the kitchen", "This is a cooked vegetable dish", "This is an unrelated image", "This is a wild mushroom"],
+    "f_고추": ["This is a fresh vegetable from the kitchen", "This is a cooked vegetable dish", "This is an unrelated image"],
+
+    "f_소고기": ["This is raw meat from the refrigerator", "This is a cooked meat dish", "This is an unrelated image"],
+    "f_돼지고기": ["This is raw meat from the refrigerator", "This is a cooked meat dish", "This is an unrelated image"],
+    "f_닭고기": ["This is raw meat from the refrigerator", "This is a cooked meat dish", "This is an unrelated image"],
+    "f_오리고기": ["This is raw meat from the refrigerator", "This is a cooked meat dish", "This is an unrelated image"],
+
+    "f_고등어": ["This is raw fish from the kitchen", "This is a cooked fish dish", "This is an unrelated image"],
+    "f_갈치": ["This is raw fish from the kitchen", "This is a cooked fish dish", "This is an unrelated image"],
+
+    "f_우유": ["This is a dairy product with an expiration date", "This is a cooked dairy dish", "This is an unrelated image"],
+    "f_버터": ["This is a dairy product with an expiration date", "This is a cooked dairy dish", "This is an unrelated image"],
+    "f_치즈": ["This is a dairy product with an expiration date", "This is a cooked dairy dish", "This is an unrelated image"],
+
+    "f_달걀": ["This is a raw egg from the refrigerator", "This is a cooked egg dish", "This is an unrelated image"]
+}
+
+# 📂 이미지 폴더 경로 (★ 본인 경로에 맞게 수정 ★)
+base_folder = "/content/drive/MyDrive/식재료 필터링"
+filtered_base_folder = "/content/drive/MyDrive/식재료 2차 필터링"
+os.makedirs(filtered_base_folder, exist_ok=True)
+
+# 🔄 사용자가 원하는 폴더 하나 선택해서 실행
+target_folder = "f_대파"  # <-- 여기에 실행할 폴더명 입력!
+image_folder = os.path.join(base_folder, target_folder)
+filtered_folder = os.path.join(filtered_base_folder, target_folder)
+os.makedirs(filtered_folder, exist_ok=True)
+
+# 📌 해당 폴더에 맞는 text_inputs 적용
+text_inputs = folder_text_inputs.get(target_folder, ["This is a fresh ingredient from the kitchen", "This is a cooked dish", "This is an unrelated image"])
+print(f"\n🔍 {target_folder} 폴더를 필터링 중... (기준: {text_inputs})")
+
+# 이미지 필터링 실행
+for image_name in os.listdir(image_folder):
+    image_path = os.path.join(image_folder, image_name)
+
+    try:
+        image = Image.open(image_path)
+        inputs = processor(text=text_inputs, images=image, return_tensors="pt", padding=True)
+        outputs = model(**inputs)
+
+        probs = torch.softmax(outputs.logits_per_image, dim=1).tolist()[0]
+
+        if probs[0] > max(probs[1], probs[2]):
+            image.save(os.path.join(filtered_folder, image_name))
+            print(f"✅ 상품 이미지로 분류됨: {image_name}")
+        else:
+            os.remove(image_path)  # ❌ 필터링된 이미지 삭제
+            print(f"❌ 제거됨: {image_name} (조리된 음식 또는 무관한 이미지)")
+
+    except Exception as e:
+        os.remove(image_path)  # ⚠️ 오류 발생한 이미지 삭제
+        print(f"⚠️ 오류 발생 및 삭제됨: {image_name} - {str(e)}")
+
+print(f"\n🎯 {target_folder} 필터링 완료! ✅")
