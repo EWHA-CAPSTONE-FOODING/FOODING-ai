@@ -1,0 +1,415 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+import requests
+import base64
+import json
+import time
+import uuid
+
+# 네이버 클로바 OCR API 정보
+API_URL = "https://uv09977dh5.apigw.ntruss.com/custom/v1/40195/a9bded21d783da7da6fa8808cc2d30848d1d9a6aa5b27f24fe223d8ecdfd3e12/general"
+SECRET_KEY = "bUdhQ3J6RXdYZ1Vta0FNYmRnR3dKd2xkR3J5UVFLbEM="
+
+## 아웃백 영수증
+
+# 1️⃣ 이미지 파일 Base64 인코딩
+image_path = "/content/drive/MyDrive/영수증/KakaoTalk_20250328_141545565.jpg"  # 영수증 이미지 파일 경로
+with open(image_path, "rb") as image_file:
+    encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+# 2️⃣ API 요청 JSON 데이터 만들기
+request_json = {
+    "version": "V2",
+    "requestId": str(uuid.uuid4()),  # 랜덤 UUID 생성
+    "timestamp": int(time.time() * 1000),  # 현재 시간 (밀리초)
+    "images": [
+        {
+            "format": "jpg",
+            "name": "receipt",
+            "data": encoded_image
+        }
+    ]
+}
+
+# 3️⃣ API 요청 헤더 설정
+headers = {
+    "X-OCR-SECRET": SECRET_KEY,  # API Secret Key
+    "Content-Type": "application/json"
+}
+
+# 4️⃣ API 요청 보내기
+response = requests.post(API_URL, headers=headers, data=json.dumps(request_json))
+
+# 5️⃣ 응답 결과 확인
+if response.status_code == 200:
+    result = response.json()
+    print(json.dumps(result, indent=4, ensure_ascii=False))  # JSON 결과 출력
+else:
+    print(f"Error {response.status_code}: {response.text}")  # 에러 출력
+
+# 저장
+with open('result.json', 'w', encoding='utf-8') as f:
+    json.dump(result, f, ensure_ascii=False, indent=4)
+
+from google.colab import files
+files.download('result.json')
+
+# 불러오기
+with open('result.json', 'r', encoding='utf-8') as f:
+    data = json.load(f)
+
+BLOCKLIST = [
+    # 주소/위치
+    "로", "길", "동", "구", "시", "호", "지점", "본점", "연세", "건물", "층", "타워",
+
+    # 결제 관련
+    "승인", "번호", "카드", "계좌", "결제", "합계", "계", "금액", "부가세", "면세",
+    "결제금액", "총금액", "할인", "잔액", "포인트", "현금", "신용", "영수증", "쿠폰", "할부",
+    "입금", "출금", "정산", "취소", "사용", "적립", "남은", "변경", "매출", "총합", "승인번호",
+
+    # 시스템 관련
+    "POS", "단말기", "KIOSK", "매장", "고객", "번호", "발행", "출력", "시간", "날짜", "매출", "주문",
+
+    # 공통 잡음
+    ":", "[", "]", "-", "총", "개", "외", "상품권", "사원", "감사", "이용", "정상", "입력",
+    "전화", "이메일", "담당", "문의", "서비스", "주문번호", "테이블", "호출", "예약", "번호표",
+
+    # 날짜 관련
+    "년", "월", "일", "시", "분", "초",
+
+    # 기타
+    "테이블", "영업", "내역", "상호", "사업자", "대표자", "등록", "인증", "계산", "발행처"
+]
+
+# inferText 리스트로 추출
+texts = []
+for field in data['images'][0]['fields']:
+    texts.append(field['inferText'])
+
+# '메뉴', '수량', '금액' 라벨은 제거
+filtered = [t for t in texts if t not in ['메뉴', '수량', '금액']]
+
+import re
+def has_korean(text):
+    return bool(re.search(r"[가-힣]", text))
+
+def is_valid_name(text):
+    return len(text) >= 1 and not any(c in text for c in ":[]")
+
+def is_probably_menu_name(text):
+    return (
+        has_korean(text) and
+        is_valid_name(text)
+    )
+
+def is_blocked(text):
+    return any(block in text for block in BLOCKLIST)
+
+items = []
+i = 0
+
+while i < len(filtered) - 2:
+    name = filtered[i].strip()
+    quantity = filtered[i + 1].strip()
+
+    if (
+        quantity.replace(",", "").isdigit() and # 수량이 숫자인가
+        int(quantity.replace(",", "")) < 100 and
+        is_probably_menu_name(name) and
+        not is_blocked(name)
+    ):
+        items.append({
+            '이름': name,
+            '수량': quantity
+        })
+        i += 3
+    else:
+        i += 1
+
+# 결과 확인
+for item in items:
+    print(f"{item['이름']} - {item['수량']}개")
+
+## 마트 영수증 샘플
+
+sample_data = {
+    "images": [
+        {
+            "fields": [
+                {"inferText": "메뉴"},
+                {"inferText": "수량"},
+                {"inferText": "금액"},
+                {"inferText": "청양고추"},
+                {"inferText": "2"},
+                {"inferText": "1,400"},
+                {"inferText": "양파망"},
+                {"inferText": "1"},
+                {"inferText": "2,500"},
+                {"inferText": "우유(서울우유)"},
+                {"inferText": "2"},
+                {"inferText": "3,960"},
+                {"inferText": "계:"},
+                {"inferText": "7,860"},
+                {"inferText": "결제방법: 카드"},
+                {"inferText": "승인번호: 274812"},
+                {"inferText": "감사합니다!"}
+            ]
+        }
+    ]
+}
+
+import json
+
+with open('sample_mart_receipt.json', 'w', encoding='utf-8') as f:
+    json.dump(sample_data, f, ensure_ascii=False, indent=4)
+
+with open('sample_mart_receipt.json', 'r', encoding='utf-8') as f:
+    result = json.load(f)
+
+texts = [field['inferText'] for field in result['images'][0]['fields']]
+# → 이후 필터링 코드 적용
+
+# '메뉴', '수량', '금액' 라벨은 제거
+filtered = [t for t in texts if t not in ['메뉴', '수량', '금액']]
+
+items = []
+i = 0
+
+while i < len(filtered) - 2:
+    name = filtered[i].strip()
+    quantity = filtered[i + 1].strip()
+
+    if (
+        quantity.replace(",", "").isdigit() and # 수량이 숫자인가
+        int(quantity.replace(",", "")) < 100 and
+        is_probably_menu_name(name) and
+        not is_blocked(name)
+    ):
+        items.append({
+            '이름': name,
+            '수량': quantity
+        })
+        i += 3
+    else:
+        i += 1
+
+# 결과 확인
+for item in items:
+    print(f"{item['이름']} - {item['수량']}개")
+
+## 농협 영수증
+
+# 1️⃣ 이미지 파일 Base64 인코딩
+image_path = "/content/drive/MyDrive/영수증/971120_20170705143932_354_0001.jpg"  # 영수증 이미지 파일 경로
+with open(image_path, "rb") as image_file:
+    encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+# 2️⃣ API 요청 JSON 데이터 만들기
+request_json = {
+    "version": "V2",
+    "requestId": str(uuid.uuid4()),  # 랜덤 UUID 생성
+    "timestamp": int(time.time() * 1000),  # 현재 시간 (밀리초)
+    "images": [
+        {
+            "format": "jpg",
+            "name": "receipt",
+            "data": encoded_image
+        }
+    ]
+}
+
+# 3️⃣ API 요청 헤더 설정
+headers = {
+    "X-OCR-SECRET": SECRET_KEY,  # API Secret Key
+    "Content-Type": "application/json"
+}
+
+# 4️⃣ API 요청 보내기
+response = requests.post(API_URL, headers=headers, data=json.dumps(request_json))
+
+# 5️⃣ 응답 결과 확인
+if response.status_code == 200:
+    result = response.json()
+    print(json.dumps(result, indent=4, ensure_ascii=False))  # JSON 결과 출력
+else:
+    print(f"Error {response.status_code}: {response.text}")  # 에러 출력
+
+# 저장
+with open('result2.json', 'w', encoding='utf-8') as f:
+    json.dump(result, f, ensure_ascii=False, indent=4)
+
+files.download('result2.json')
+
+with open('result2.json', 'r', encoding='utf-8') as f:
+    result = json.load(f)
+
+texts = [field['inferText'] for field in result['images'][0]['fields']]
+# → 이후 필터링 코드 적용
+
+# '메뉴', '수량', '금액' 라벨은 제거
+filtered = [t for t in texts if t not in ['메뉴', '수량', '금액']]
+
+items = []
+i = 0
+
+while i < len(filtered) - 2:
+    name = filtered[i].strip()
+    quantity = filtered[i + 1].strip()
+
+    if (
+        quantity.replace(",", "").isdigit() and # 수량이 숫자인가
+        int(quantity.replace(",", "")) < 100 and
+        is_probably_menu_name(name) and
+        not is_blocked(name)
+    ):
+        items.append({
+            '이름': name,
+            '수량': quantity
+        })
+        i += 3
+    else:
+        i += 1
+
+# 결과 확인
+for item in items:
+    print(f"{item['이름']} - {item['수량']}개")
+
+# 영수증 3
+
+# 1️⃣ 이미지 파일 Base64 인코딩
+image_path = "/content/drive/MyDrive/영수증/01.36706977.1.jpg"  # 영수증 이미지 파일 경로
+with open(image_path, "rb") as image_file:
+    encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+# 2️⃣ API 요청 JSON 데이터 만들기
+request_json = {
+    "version": "V2",
+    "requestId": str(uuid.uuid4()),  # 랜덤 UUID 생성
+    "timestamp": int(time.time() * 1000),  # 현재 시간 (밀리초)
+    "images": [
+        {
+            "format": "jpg",
+            "name": "receipt",
+            "data": encoded_image
+        }
+    ]
+}
+
+# 3️⃣ API 요청 헤더 설정
+headers = {
+    "X-OCR-SECRET": SECRET_KEY,  # API Secret Key
+    "Content-Type": "application/json"
+}
+
+# 4️⃣ API 요청 보내기
+response = requests.post(API_URL, headers=headers, data=json.dumps(request_json))
+
+# 5️⃣ 응답 결과 확인
+if response.status_code == 200:
+    result = response.json()
+    print(json.dumps(result, indent=4, ensure_ascii=False))  # JSON 결과 출력
+else:
+    print(f"Error {response.status_code}: {response.text}")  # 에러 출력
+
+## 일반화 함수
+
+BLOCKLIST = [
+    # 주소/위치
+    "로", "길", "동", "구", "시", "호", "지점", "본점", "연세", "건물", "층", "타워",
+
+    # 결제 관련
+    "승인", "번호", "카드", "계좌", "결제", "합계", "계", "금액", "부가세", "면세",
+    "결제금액", "총금액", "할인", "잔액", "포인트", "현금", "신용", "영수증", "쿠폰", "할부",
+    "입금", "출금", "정산", "취소", "사용", "적립", "남은", "변경", "매출", "총합", "승인번호",
+
+    # 시스템 관련
+    "POS", "단말기", "KIOSK", "매장", "고객", "번호", "발행", "출력", "시간", "날짜", "매출", "주문",
+
+    # 공통 잡음
+    ":", "[", "]", "-", "총", "개", "외", "상품권", "사원", "감사", "이용", "정상", "입력",
+    "전화", "이메일", "담당", "문의", "서비스", "주문번호", "테이블", "호출", "예약", "번호표",
+
+    # 날짜 관련
+    "년", "월", "일", "시", "분", "초",
+
+    # 기타
+    "테이블", "영업", "내역", "상호", "사업자", "대표자", "등록", "인증", "계산", "발행처"
+]
+
+import re
+
+def extract_items_from_receipt(result):
+    # OCR 텍스트 추출
+    tokens = [field['inferText'].strip() for field in result['images'][0]['fields']]
+
+    HEADERS = ['메뉴', '수량', '금액', '단가', '상품(코드)']
+    UNITS = ['g', 'ml', 'kg', 'l', 'L', '[', ']']
+
+    def has_korean(text):
+        return bool(re.search(r"[가-힣]", text))
+
+    def is_blocked(text):
+        return any(block in text for block in BLOCKLIST)
+
+    def looks_like_name(text):
+        return bool(re.match(r"^[가-힣]{3}$", text))  # 예: 김갑순
+
+    def is_probably_menu_name(text):
+        return (
+            has_korean(text)
+            and not is_blocked(text)
+            and not looks_like_name(text)
+            and not text.startswith('*')
+            and not text.isdigit()
+            and len(text) > 1
+        )
+
+    def merge_menu_name(tokens, start_idx):
+        name = tokens[start_idx]
+        i = start_idx + 1
+        while i < len(tokens):
+            t = tokens[i]
+            if re.match(r"^\d{1,2}$", t):  # 수량이면 stop
+                break
+            if any(u in t for u in UNITS):  # 용량/단가 등 skip
+                break
+            if len(t) <= 1:
+                break
+            if not has_korean(t):  # 한글 없으면 skip
+                break
+            name += " " + t
+            i += 1
+        return name.strip(), i
+
+    def find_quantity_nearby(tokens, start_idx, max_offset=8):
+        for j in range(start_idx + 1, min(start_idx + max_offset, len(tokens))):
+            candidate = tokens[j].replace(",", "")
+            if re.match(r"^\d{1,2}$", candidate):
+                return candidate
+        return None
+
+    # 메인 추출 루프
+    filtered = [t for t in tokens if t not in HEADERS and len(t) > 0]
+    items = []
+    i = 0
+    while i < len(filtered):
+        t = filtered[i]
+        if t.startswith('P') and is_probably_menu_name(t):
+            name, next_i = merge_menu_name(filtered, i)
+            quantity = find_quantity_nearby(filtered, next_i)
+            if quantity:
+                items.append({'이름': name, '수량': quantity})
+                i = next_i + 1
+                continue
+        elif is_probably_menu_name(t):
+            quantity = find_quantity_nearby(filtered, i)
+            if quantity:
+                items.append({'이름': t, '수량': quantity})
+                i += 2
+                continue
+        i += 1
+
+    return items
+
+extract_items_from_receipt(result)
