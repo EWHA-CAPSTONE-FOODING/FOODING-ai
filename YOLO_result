@@ -1,0 +1,37 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+!pip install -U numpy torch ultralytics
+
+from IPython import display
+display.clear_output()
+
+import ultralytics
+ultralytics.checks()
+
+from IPython.display import display, Image
+
+from ultralytics import YOLO
+
+import os
+print(os.listdir("/content/drive/MyDrive/yolo/archive"))
+
+import torch
+
+# 모델 파일 경로
+model_path = "/content/drive/MyDrive/yolo_model/best.pt"
+
+# 파일이 정상적으로 저장되었는지 확인
+ckpt = torch.load(model_path, map_location="cpu")
+
+# 내부 키 확인
+print(ckpt.keys())
+
+# 모델 불러오기
+model = YOLO(model_path, task="detect")
+
+# 테스트 이미지에서 YOLO 예측 실행
+model.predict(source="/content/drive/MyDrive/dataset/test/images/carrotcarrot_1130_jpg.rf.3d68f3d9aee8787e396a8d3307d5b809.jpg", save=True)
+
+# 결과 이미지 표시
+Image(filename=f"/content/runs/detect/predict/carrotcarrot_1130_jpg.rf.3d68f3d9aee8787e396a8d3307d5b809.jpg")
