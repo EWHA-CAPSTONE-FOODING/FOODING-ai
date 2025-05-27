@@ -2,8 +2,10 @@ from flask import Flask, request, jsonify
 from joblib  import load
 import numpy as np
 from datetime  import datetime, timedelta
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 model_qty  = load('models/ensemble_qty.joblib')
 model_date = load('models/ensemble_interval.joblib')
 
