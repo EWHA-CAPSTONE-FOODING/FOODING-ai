@@ -1,0 +1,92 @@
+pip install openai pandas
+
+import os
+import openai
+import pandas as pd
+import requests
+
+# OpenAI API 키 설정
+openai.api_key = os.getenv("sk-mlFFjm19rWW9jimzajIQLhRxRm9BrK6Qj4uYNSoP500sq3Fu")
+
+# 소비 내역, 메뉴 선택 데이터 받아오기
+def fetch_backend_data():
+    base_url = "http://3.36.159.65:5000"
+
+    resp_p = requests.get(f"{base_url}/purchases")
+    resp_p.raise_for_status()
+    purchases = resp_p.json()
+
+    resp_m = requests.get(f"{base_url}/menu_history")
+    resp_m.raise_for_status()
+    menu_history = resp_m.json()
+
+    return purchases, menu_history
+
+# 프롬프트
+def build_prompt(purchases: list, menu_history: list) -> str:
+    purchase_lines = []
+    for p in purchases:
+        purchase_lines.append(f"- {p['ingredient']}: 지출 {p['spending']}원")
+    purchases_text = "\n".join(purchase_lines)
+
+    menu_lines = []
+    for m in menu_history:
+        menu_lines.append(
+            f"- {m['menu']} (조리횟수 {m['count']}, 지출 {m['spending']}원, 날짜 {m['date']})"
+        )
+    menu_text = "\n".join(menu_lines)
+
+    prompt = f"""
+아래는 이번 주 사용자가 구매·섭취한 내역입니다.
+
+[구매 내역]
+{purchases_text}
+
+[메뉴 선택 내역]
+{menu_text}
+
+위 두 목록만 참고하여
+1) 이번 주 식단에 어떤 영양소가 부족하거나 과잉되었는지 분석하고,
+2) 부족한 영양소(예: 식이섬유, 비타민, 미네랄, 오메가-3, 건강한 지방 등)를 보충해 줄 식재료와 그 이유를 추천해 주세요.
+
+- 반드시 CSV 형식으로만 응답해 주세요.
+- 헤더(칼럼)는 `ingredient,reason` 두 개만 사용합니다.
+- 응답에는 CSV 이외의 설명을 일절 포함하지 마세요.
+
+예시 형식:
+ingredient,reason
+브로콜리,비타민C·식이섬유가 풍부하여 ...
+시금치,철분·비타민A가 풍부하여 ...
+...
+"""
+    return prompt.strip()
+
+
+# OpenAI ChatCompletion API 호출
+def generate_recommendations_csv(prompt_text: str) -> str:
+    response = openai.ChatCompletion.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "당신은 식이영양학에 능통한 영양사 겸 데이터 분석가입니다."},
+            {"role": "user", "content": prompt_text}
+        ],
+        temperature=0.0,
+        max_tokens=800,
+        n=1
+    )
+    return response.choices[0].message.content.strip()
+
+if __name__ == "__main__":
+    # 백엔드에서 데이터 가져오기
+    purchases, menu_history = fetch_backend_data()
+
+    prompt_text = build_prompt(purchases, menu_history)
+
+    # 3) CSV 문자열 받기
+    csv_result = generate_recommendations_csv(prompt_text)
+
+    # 4) CSV 결과 출력
+    print(csv_result)
+
+    with open("recommendations.csv", "w", encoding="utf-8-sig") as f:
+        f.write(csv_result + "\n")
