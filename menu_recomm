@@ -1,0 +1,68 @@
+pip install openai pandas
+
+import os
+import openai
+import pandas as pd
+import requests
+
+# OpenAI API 키 설정
+openai.api_key = os.getenv("sk-mlFFjm19rWW9jimzajIQLhRxRm9BrK6Qj4uYNSoP500sq3Fu")
+
+# 사용자 보유한 식재료 데이터 받아오기
+def fetch_backend_data():
+    base_url = "http://3.36.159.65:5000"
+
+    # 사용자 보유 식재료를 등록 순서대로 배열로 반환
+    resp = requests.get(f"{base_url}/inventory")
+    resp.raise_for_status()
+    inventory = resp.json()
+
+    return inventory
+
+# 프롬프트
+def build_prompt(inventory: list) -> str:
+    inventory_lines = []
+    for item in inventory:
+        inventory_lines.append(f"- {item}")
+    inventory_text = "\n".join(inventory_lines)
+
+    prompt = f"""
+아래는 사용자가 보유한 식재료 목록입니다. 순서는 최초 등록된 순서(가장 오래된 항목이 맨 위)입니다.
+
+[보유 식재료 목록]
+{inventory_text}
+
+위 목록만 참고하여
+1) 최초 등록된 순서대로(맨 위에서부터) 식재료를 우선적으로 사용하는 메뉴를 추천하고,
+2) 각 메뉴가 가능한 한 많은 보유 식재료를 사용하여 식재료 낭비가 없도록 해주세요.
+
+• 추천 메뉴는 3~5가지로 제한해 주세요.
+• 각 메뉴마다 어떤 식재료를 사용하는지 반드시 표시해 주세요.
+• 반드시 JSON 배열 형식으로 응답해 주세요. 예시:
+[
+  {{
+    "menu": "시금치 두부 된장국",
+    "used_ingredients": ["시금치", "두부"]
+  }},
+  {{
+    "menu": "닭가슴살 채소볶음",
+    "used_ingredients": ["닭가슴살", "양파", "당근", ...]
+  }},
+  ...
+]
+• JSON 이외의 텍스트나 설명은 절대 포함하지 마세요.
+"""
+    return prompt.strip()
+
+if __name__ == "__main__":
+    # 사용자 보유 식재료 가져오기
+    inventory = fetch_backend_data()
+
+    # GPT 호출하여 메뉴 추천 JSON 리스트 받기
+    recs = generate_menu_recommendations(inventory)
+
+    # 콘솔에 JSON 출력
+    print(json.dumps(recs, ensure_ascii=False, indent=2))
+
+    with open("menu_recommendations.json", "w", encoding="utf-8-sig") as f:
+        json.dump(recs, f, ensure_ascii=False, indent=2)
