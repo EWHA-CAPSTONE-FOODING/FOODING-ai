@@ -73,5 +73,7 @@
 <br>: 코드 참고
 
 ## Sample Data
+- **OCR (영수증 텍스트 추출)**
+  <br>영수증 샘플 이미지: receipt 폴더
 - **YOLOv8 (식재료 이미지 인식)**
   <br>train/validation/test 이미지가 포함된 커스텀 데이터셋 zip: fooding.v1i.yolov8.zip
