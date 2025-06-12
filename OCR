@@ -13,12 +13,12 @@ SECRET_KEY = "bUdhQ3J6RXdYZ1Vta0FNYmRnR3dKd2xkR3J5UVFLbEM="
 
 ## 아웃백 영수증
 
-# 1️⃣ 이미지 파일 Base64 인코딩
+# 이미지 파일 Base64 인코딩
 image_path = "/content/drive/MyDrive/영수증/KakaoTalk_20250328_141545565.jpg"  # 영수증 이미지 파일 경로
 with open(image_path, "rb") as image_file:
     encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
 
-# 2️⃣ API 요청 JSON 데이터 만들기
+# API 요청 JSON 데이터 만들기
 request_json = {
     "version": "V2",
     "requestId": str(uuid.uuid4()),  # 랜덤 UUID 생성
@@ -32,16 +32,16 @@ request_json = {
     ]
 }
 
-# 3️⃣ API 요청 헤더 설정
+# API 요청 헤더 설정
 headers = {
     "X-OCR-SECRET": SECRET_KEY,  # API Secret Key
     "Content-Type": "application/json"
 }
 
-# 4️⃣ API 요청 보내기
+# API 요청 보내기
 response = requests.post(API_URL, headers=headers, data=json.dumps(request_json))
 
-# 5️⃣ 응답 결과 확인
+# 응답 결과 확인
 if response.status_code == 200:
     result = response.json()
     print(json.dumps(result, indent=4, ensure_ascii=False))  # JSON 결과 출력
@@ -200,12 +200,12 @@ for item in items:
 
 ## 농협 영수증
 
-# 1️⃣ 이미지 파일 Base64 인코딩
+#이미지 파일 Base64 인코딩
 image_path = "/content/drive/MyDrive/영수증/971120_20170705143932_354_0001.jpg"  # 영수증 이미지 파일 경로
 with open(image_path, "rb") as image_file:
     encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
 
-# 2️⃣ API 요청 JSON 데이터 만들기
+# API 요청 JSON 데이터 만들기
 request_json = {
     "version": "V2",
     "requestId": str(uuid.uuid4()),  # 랜덤 UUID 생성
@@ -219,16 +219,16 @@ request_json = {
     ]
 }
 
-# 3️⃣ API 요청 헤더 설정
+# API 요청 헤더 설정
 headers = {
     "X-OCR-SECRET": SECRET_KEY,  # API Secret Key
     "Content-Type": "application/json"
 }
 
-# 4️⃣ API 요청 보내기
+# API 요청 보내기
 response = requests.post(API_URL, headers=headers, data=json.dumps(request_json))
 
-# 5️⃣ 응답 결과 확인
+# 응답 결과 확인
 if response.status_code == 200:
     result = response.json()
     print(json.dumps(result, indent=4, ensure_ascii=False))  # JSON 결과 출력
@@ -277,12 +277,12 @@ for item in items:
 
 # 영수증 3
 
-# 1️⃣ 이미지 파일 Base64 인코딩
+# 이미지 파일 Base64 인코딩
 image_path = "/content/drive/MyDrive/영수증/01.36706977.1.jpg"  # 영수증 이미지 파일 경로
 with open(image_path, "rb") as image_file:
     encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
 
-# 2️⃣ API 요청 JSON 데이터 만들기
+# API 요청 JSON 데이터 만들기
 request_json = {
     "version": "V2",
     "requestId": str(uuid.uuid4()),  # 랜덤 UUID 생성
@@ -296,16 +296,16 @@ request_json = {
     ]
 }
 
-# 3️⃣ API 요청 헤더 설정
+# API 요청 헤더 설정
 headers = {
     "X-OCR-SECRET": SECRET_KEY,  # API Secret Key
     "Content-Type": "application/json"
 }
 
-# 4️⃣ API 요청 보내기
+# API 요청 보내기
 response = requests.post(API_URL, headers=headers, data=json.dumps(request_json))
 
-# 5️⃣ 응답 결과 확인
+# 응답 결과 확인
 if response.status_code == 200:
     result = response.json()
     print(json.dumps(result, indent=4, ensure_ascii=False))  # JSON 결과 출력
