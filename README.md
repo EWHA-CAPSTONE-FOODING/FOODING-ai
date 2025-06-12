@@ -39,21 +39,21 @@
 
 ## How to Install
 1. OCR (영수증 텍스트 추출)
-   pip install requests
+- pip install requests
    : Google Colab 환경 기준이며, 추가적으로 google.colab, base64, uuid, re, json, time 모듈 사용
 
 2. YOLOv8 (식재료 이미지 인식)
-   pip install -U ultralytics==8.2.103 torch numpy
+- pip install -U ultralytics==8.2.103 torch numpy
    + Colab 환경에서는 nvidia-smi로 GPU 상태를 확인할 수 있음
 
 3. OpenAI 기반 GPT4o (메뉴 추천 / 식재료 조언)
-   pip install openai pandas requests
-   + .env 또는 환경변수에 다음과 같은 형식으로 OpenAI API 키 등록
-   export OPENAI_API_KEY=sk-xxxxxx
-   openai.api_key = "sk-xxxxxx"
+- pip install openai pandas requests
+- env 또는 환경변수에 다음과 같은 형식으로 OpenAI API 키 등록
+  <br>export OPENAI_API_KEY=sk-xxxxxx
+  <br>openai.api_key = "sk-xxxxxx"
 
 4. 구매 주기 예측
-   pip install scikit-learn xgboost lightgbm catboost joblib pandas numpy flask flask-cors prophet
+- pip install scikit-learn xgboost lightgbm catboost joblib pandas numpy flask flask-cors prophet
 
 ## How to Test
 1. OCR (영수증 텍스트 추출)
@@ -62,16 +62,16 @@
 - 추출된 inferText들을 기반으로 필터링 조건에 따라 이름, 수량 추출
 
 2. YOLOv8 (식재료 이미지 인식)
-  from ultralytics import YOLO
-  model = YOLO("path/to/best.pt")  # 학습된 모델 불러오기
-  model.predict(source="path/to/test/images", save=True) # 테스트 이미지 예측
+  <br>from ultralytics import YOLO
+  <br>model = YOLO("path/to/best.pt")  # 학습된 모델 불러오기
+  <br>model.predict(source="path/to/test/images", save=True) # 테스트 이미지 예측
 
 3. OpenAI 기반 GPT4o (메뉴 추천 / 식재료 조언)
-: 코드 참고
+<br>: 코드 참고
 
 4. 구매 주기 예측
 
 
 ## Sample Data
 2. YOLOv8 (식재료 이미지 인식)
-  train/validation/test 이미지가 포함된 커스텀 데이터셋 zip: fooding.v1i.yolov8.zip
+  <br>train/validation/test 이미지가 포함된 커스텀 데이터셋 zip: fooding.v1i.yolov8.zip
