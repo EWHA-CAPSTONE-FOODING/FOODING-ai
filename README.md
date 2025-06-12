@@ -15,7 +15,8 @@
 - `ingredient_recomm/`: 주간 소비 분석 → 식재료 조언 모듈  
 - `purchase_prediction.ipynb`: 구매 주기 및 수량 예측 실험 코드
 - `web_crawling/`     : 식재료 이미지 크롤링 스크립트  
-- `my_flask_app/`     : Flask 서버  
+- `my_flask_app/`     : Flask 서버
+- `영수증/`     : 영수증 샘플 이미지 폴더
 
 ## How to Build
 1. **OCR (영수증 텍스트 추출)**
@@ -71,9 +72,3 @@
 
 4. **구매 주기 예측**
 <br>: 코드 참고
-
-## Sample Data
-- **OCR (영수증 텍스트 추출)**
-  <br>영수증 샘플 이미지: receipt 폴더
-- **YOLOv8 (식재료 이미지 인식)**
-  <br>train/validation/test 이미지가 포함된 커스텀 데이터셋 zip: fooding.v1i.yolov8.zip
