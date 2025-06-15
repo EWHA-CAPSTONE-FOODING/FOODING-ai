@@ -323,14 +323,6 @@ import re
 from difflib import get_close_matches
 
 def parse_receipt(image_path: str, api_url: str, secret_key: str) -> list[dict]:
-    """
-    Clova OCR로 영수증을 파싱하여,
-    'P' 접두가 붙은 모든 품목에 대해
-      • 이름: 'P' 제거 후, 연속된 한글 토큰을 합쳐서 생성 (까찌→아찌 치환)
-      • 수량: 이름 뒤 첫 순수 정수(<=100)를 수량으로 사용 (없으면 '1')
-      • 금액: 해당 수량 바로 앞의 숫자(콤마 포함)를 금액으로 추출
-    '포인트', '회원' 등 불필요 항목은 자동으로 제외합니다.
-    """
     # 1) 이미지 → Base64
     with open(image_path, "rb") as f:
         img_b64 = base64.b64encode(f.read()).decode("utf-8")
