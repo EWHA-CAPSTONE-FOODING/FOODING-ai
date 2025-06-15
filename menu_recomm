@@ -6,7 +6,7 @@ import pandas as pd
 import requests
 
 # OpenAI API 키 설정
-openai.api_key = os.getenv("sk-mlFFjm19rWW9jimzajIQLhRxRm9BrK6Qj4uYNSoP500sq3Fu")
+openai.api_key = os.getenv("sk-xxxx")
 
 # 사용자 보유한 식재료 데이터 받아오기
 def fetch_backend_data():
