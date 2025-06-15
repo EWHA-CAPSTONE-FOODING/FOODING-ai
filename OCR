@@ -314,102 +314,108 @@ else:
 
 ## 일반화 함수
 
-BLOCKLIST = [
-    # 주소/위치
-    "로", "길", "동", "구", "시", "호", "지점", "본점", "연세", "건물", "층", "타워",
-
-    # 결제 관련
-    "승인", "번호", "카드", "계좌", "결제", "합계", "계", "금액", "부가세", "면세",
-    "결제금액", "총금액", "할인", "잔액", "포인트", "현금", "신용", "영수증", "쿠폰", "할부",
-    "입금", "출금", "정산", "취소", "사용", "적립", "남은", "변경", "매출", "총합", "승인번호",
-
-    # 시스템 관련
-    "POS", "단말기", "KIOSK", "매장", "고객", "번호", "발행", "출력", "시간", "날짜", "매출", "주문",
-
-    # 공통 잡음
-    ":", "[", "]", "-", "총", "개", "외", "상품권", "사원", "감사", "이용", "정상", "입력",
-    "전화", "이메일", "담당", "문의", "서비스", "주문번호", "테이블", "호출", "예약", "번호표",
-
-    # 날짜 관련
-    "년", "월", "일", "시", "분", "초",
-
-    # 기타
-    "테이블", "영업", "내역", "상호", "사업자", "대표자", "등록", "인증", "계산", "발행처"
-]
-
+import base64
+import uuid
+import time
+import requests
+import json
 import re
+from difflib import get_close_matches
 
-def extract_items_from_receipt(result):
-    # OCR 텍스트 추출
-    tokens = [field['inferText'].strip() for field in result['images'][0]['fields']]
+def parse_receipt(image_path: str, api_url: str, secret_key: str) -> list[dict]:
+    """
+    Clova OCR로 영수증을 파싱하여,
+    'P' 접두가 붙은 모든 품목에 대해
+      • 이름: 'P' 제거 후, 연속된 한글 토큰을 합쳐서 생성 (까찌→아찌 치환)
+      • 수량: 이름 뒤 첫 순수 정수(<=100)를 수량으로 사용 (없으면 '1')
+      • 금액: 해당 수량 바로 앞의 숫자(콤마 포함)를 금액으로 추출
+    '포인트', '회원' 등 불필요 항목은 자동으로 제외합니다.
+    """
+    # 1) 이미지 → Base64
+    with open(image_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode("utf-8")
 
-    HEADERS = ['메뉴', '수량', '금액', '단가', '상품(코드)']
-    UNITS = ['g', 'ml', 'kg', 'l', 'L', '[', ']']
+    # 2) OCR API 호출
+    payload = {
+        "version": "V2",
+        "requestId": str(uuid.uuid4()),
+        "timestamp": int(time.time() * 1000),
+        "images": [{
+            "format": image_path.rsplit(".", 1)[-1],
+            "name": "receipt",
+            "data": img_b64
+        }]
+    }
+    headers = {
+        "X-OCR-SECRET": secret_key,
+        "Content-Type": "application/json"
+    }
+    resp = requests.post(api_url, headers=headers, json=payload)
+    resp.raise_for_status()
+    fields = resp.json()["images"][0]["fields"]
 
-    def has_korean(text):
-        return bool(re.search(r"[가-힣]", text))
-
-    def is_blocked(text):
-        return any(block in text for block in BLOCKLIST)
-
-    def looks_like_name(text):
-        return bool(re.match(r"^[가-힣]{3}$", text))  # 예: 김갑순
-
-    def is_probably_menu_name(text):
-        return (
-            has_korean(text)
-            and not is_blocked(text)
-            and not looks_like_name(text)
-            and not text.startswith('*')
-            and not text.isdigit()
-            and len(text) > 1
-        )
-
-    def merge_menu_name(tokens, start_idx):
-        name = tokens[start_idx]
-        i = start_idx + 1
-        while i < len(tokens):
-            t = tokens[i]
-            if re.match(r"^\d{1,2}$", t):  # 수량이면 stop
-                break
-            if any(u in t for u in UNITS):  # 용량/단가 등 skip
-                break
-            if len(t) <= 1:
-                break
-            if not has_korean(t):  # 한글 없으면 skip
-                break
-            name += " " + t
-            i += 1
-        return name.strip(), i
-
-    def find_quantity_nearby(tokens, start_idx, max_offset=8):
-        for j in range(start_idx + 1, min(start_idx + max_offset, len(tokens))):
-            candidate = tokens[j].replace(",", "")
-            if re.match(r"^\d{1,2}$", candidate):
-                return candidate
-        return None
-
-    # 메인 추출 루프
-    filtered = [t for t in tokens if t not in HEADERS and len(t) > 0]
+    # 3) 토큰 목록 추출
+    tokens = [f["inferText"] for f in fields]
+    n = len(tokens)
     items = []
-    i = 0
-    while i < len(filtered):
-        t = filtered[i]
-        if t.startswith('P') and is_probably_menu_name(t):
-            name, next_i = merge_menu_name(filtered, i)
-            quantity = find_quantity_nearby(filtered, next_i)
-            if quantity:
-                items.append({'이름': name, '수량': quantity})
-                i = next_i + 1
+
+    # 4) 제외할 키워드
+    UNWANTED = {"포인트", "회원", "고객포인트", "잔여포인트", "사용가능포인트"}
+
+    # 5) 'P' 접두 아이템 처리
+    for i, tok in enumerate(tokens):
+        if not tok.startswith("P"):
+            continue
+
+        # 5.1) 이름 조합 (P 제거 + 뒤따르는 한글)
+        name_parts = [tok[1:].strip()]
+        j = i + 1
+        while j < n:
+            nxt = tokens[j].strip()
+            # 숫자/가격/바코드(*) 만나면 이름 조합 종료
+            if re.fullmatch(r"(\*.*|\d+([,]\d{3})*(ML|ml|g|G)?)", nxt):
+                break
+            hanguls = re.findall(r"[가-힣]+", nxt)
+            if hanguls:
+                part = "".join(hanguls).replace("까찌", "아찌")
+                name_parts.append(part)
+                j += 1
                 continue
-        elif is_probably_menu_name(t):
-            quantity = find_quantity_nearby(filtered, i)
-            if quantity:
-                items.append({'이름': t, '수량': quantity})
-                i += 2
-                continue
-        i += 1
+            break
+        full_name = " ".join(name_parts)
+
+        # 5.2) 불필요 항목 필터링
+        if any(k in full_name for k in UNWANTED):
+            continue
+
+        # 5.3) 수량 및 금액 추출
+        qty = None
+        price = ""
+        # j는 이름 끝난 인덱스, 그 뒤 최대 5칸에서 수량과 가격 찾기
+        for k in range(j, min(j + 6, n)):
+            tok2 = tokens[k].replace(",", "").strip()
+            # 순수 숫자 토큰이면 수량 후보
+            if tok2.isdigit():
+                q = int(tok2)
+                if 1 <= q <= 100:
+                    qty = tok2
+                    # 가격은 수량 바로 앞 토큰
+                    prev = tokens[k-1].strip()
+                    if re.match(r"^\d{1,3}(?:,\d{3})*$", prev):
+                        price = prev
+                    break
+        if qty is None:
+            qty = "1"
+
+        items.append({
+            "이름": full_name,
+            "수량": qty,
+            "금액": price
+        })
 
     return items
 
-extract_items_from_receipt(result)
+IMAGE_PATH = "/content/drive/MyDrive/영수증/971120_20170705143932_354_0001.jpg"
+
+parsed = parse_receipt(IMAGE_PATH, API_URL, SECRET_KEY)
+print(parsed)
